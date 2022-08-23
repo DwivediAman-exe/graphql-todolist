@@ -35,6 +35,18 @@ const ADD_TODO = gql`
 	}
 `;
 
+const DELETE_TODO = gql`
+	mutation deleteTodo($id: uuid!) {
+		delete_todos(where: { id: { _eq: $id } }) {
+			returning {
+				id
+				done
+				text
+			}
+		}
+	}
+`;
+
 function App() {
 	const [todoText, setTodoText] = useState('');
 
@@ -43,6 +55,7 @@ function App() {
 	const [addTodo] = useMutation(ADD_TODO, {
 		onCompleted: () => setTodoText(''),
 	});
+	const [deleteTodo] = useMutation(DELETE_TODO);
 
 	async function handleToggleTodo({ id, done }) {
 		const data = await toggleTodo({
@@ -63,6 +76,27 @@ function App() {
 			refetchQueries: [{ query: GET_TODOS }],
 		});
 		console.log('created todo', data);
+	}
+
+	async function handleDeleteTodo({ id, text }) {
+		const isConfirmed = window.confirm(`Do you want to delete ${text}`);
+		if (isConfirmed) {
+			const data = await deleteTodo({
+				variables: { id },
+				update: (cache) => {
+					const prevData = cache.readQuery({ query: GET_TODOS });
+					console.log(prevData);
+					const newTodos = prevData.todos.filter(
+						(todo) => todo.id !== id
+					);
+					cache.writeQuery({
+						query: GET_TODOS,
+						data: { todos: newTodos },
+					});
+				},
+			});
+			console.log('deleted todo', data);
+		}
 	}
 
 	if (loading) return <div>Loading Todos</div>;
@@ -103,7 +137,13 @@ function App() {
 							{todo.text}
 						</span>
 						<button className="bg-transparent bn f4">
-							<span className="red"> &times;</span>
+							<span
+								className="red"
+								onClick={() => handleDeleteTodo(todo)}
+							>
+								{' '}
+								&times;
+							</span>
 						</button>
 					</p>
 				))}
